@@ -25,7 +25,7 @@ GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
 TO_EMAIL   = os.environ["GMAIL_USER"]
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
-GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"
+GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 MODEL = "gpt-4o-mini"   # free tier on GitHub Models
 
 JOBS_FILE = "jobs_data.json"
@@ -80,6 +80,8 @@ def call_github_models(prompt, max_tokens=2048, max_retries=3):
             headers={
                 "Authorization": f"Bearer {GITHUB_TOKEN}",
                 "Content-Type": "application/json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "Accept": "application/vnd.github+json"
             },
             method="POST",
         )
