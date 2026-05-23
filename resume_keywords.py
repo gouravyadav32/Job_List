@@ -23,7 +23,7 @@ from datetime import datetime
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
-TO_EMAIL   = os.environ.get["GMAIL_USER"]
+TO_EMAIL   = os.environ["GMAIL_USER"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
