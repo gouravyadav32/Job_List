@@ -23,7 +23,7 @@ from datetime import datetime
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
-TO_EMAIL   = os.environ.get("TO_EMAIL", GMAIL_USER)
+TO_EMAIL   = os.environ.get["GMAIL_USER"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -53,8 +53,11 @@ def build_job_context(all_results):
 
 
 # ── GEMINI API (no SDK needed — plain HTTP) ────────────────────────────────────
-def call_gemini(prompt, max_tokens=2048):
-    """Call Google Gemini's OpenAI-compatible API using only stdlib (no pip install)."""
+def call_gemini(prompt, max_tokens=2048, max_retries=3):
+    """Call Google Gemini's OpenAI-compatible API with retry logic for rate limits."""
+    import time
+    import re
+
     payload = json.dumps({
         "model": MODEL,
         "messages": [
@@ -71,27 +74,35 @@ def call_gemini(prompt, max_tokens=2048):
         "max_tokens": max_tokens,
     }).encode("utf-8")
 
-    req = urllib.request.Request(
-        GEMINI_API_URL,
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {GEMINI_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    for attempt in range(1, max_retries + 1):
+        req = urllib.request.Request(
+            GEMINI_API_URL,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {GEMINI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
 
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode())
-            return data["choices"][0]["message"]["content"]
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        print(f"[ERROR] Gemini API {e.code}: {body}")
-        return None
-    except Exception as e:
-        print(f"[ERROR] Gemini API call failed: {e}")
-        return None
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode())
+                return data["choices"][0]["message"]["content"]
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()
+            if e.code == 429 and attempt < max_retries:
+                # Extract retry delay from response, default to 30s
+                match = re.search(r'"retryDelay":\s*"(\d+)s?"', body)
+                wait = int(match.group(1)) + 5 if match else 30 * attempt
+                print(f"[WARN] Rate limited (attempt {attempt}/{max_retries}). Retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            print(f"[ERROR] Gemini API {e.code}: {body}")
+            return None
+        except Exception as e:
+            print(f"[ERROR] Gemini API call failed: {e}")
+            return None
 
 
 # ── PROMPTS ───────────────────────────────────────────────────────────────────
