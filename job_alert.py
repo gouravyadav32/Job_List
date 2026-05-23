@@ -146,5 +146,10 @@ def main():
     html  = build_html(all_results)
     send_email(html, total)
 
+    # Save job data for downstream workflow jobs (resume optimizer)
+    with open("jobs_data.json", "w", encoding="utf-8") as f:
+        json.dump(all_results, f, ensure_ascii=False, indent=2)
+    print(f"📄 Saved jobs_data.json ({total} jobs) for resume optimizer.")
+
 if __name__ == "__main__":
     main()

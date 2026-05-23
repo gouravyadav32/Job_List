@@ -6,6 +6,7 @@ on:
   workflow_dispatch:           # also lets you trigger manually from GitHub UI
 
 jobs:
+  # ── JOB 1: Scrape jobs & send alert email ─────────────────────────────────
   send-job-alert:
     runs-on: ubuntu-latest
 
@@ -27,3 +28,37 @@ jobs:
           GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
           TO_EMAIL:       ${{ secrets.TO_EMAIL }}        # optional, defaults to GMAIL_USER
         run: python job_alert.py
+
+      - name: Upload job data for resume optimizer
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobs-data
+          path: jobs_data.json
+          retention-days: 1
+
+  # ── JOB 2: AI Resume Keyword Optimizer (Groq + Llama 3) ───────────────────
+  resume-optimizer:
+    runs-on: ubuntu-latest
+    needs: send-job-alert       # waits for Job 1 to finish
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download job data from previous job
+        uses: actions/download-artifact@v4
+        with:
+          name: jobs-data
+
+      - name: Run resume keyword optimizer
+        env:
+          GMAIL_USER:     ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          TO_EMAIL:       ${{ secrets.TO_EMAIL }}
+          GROQ_API_KEY:   ${{ secrets.GROQ_API_KEY }}
+        run: python resume_keywords.py
