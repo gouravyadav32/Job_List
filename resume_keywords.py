@@ -180,6 +180,10 @@ def main():
     if len(job_context) > 12000:
         job_context = job_context[:12000] + "\n... [truncated for token limit]"
 
+    print("⏳ Waiting 30 seconds to respect Gemini API rate limits (15 requests/min)...")
+    import time
+    time.sleep(30)
+
     print(f"🤖 Calling Gemini API ({MODEL})...")
     ai_response = call_gemini(get_keywords_prompt(job_context))
 
