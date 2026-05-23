@@ -2,7 +2,7 @@
 
 **Automated daily job scraping + AI-powered resume keyword analysis — completely free.**
 
-Scrapes Data Engineer jobs from **Indeed, LinkedIn & Glassdoor** across India, Middle East & Remote, then uses **Google Gemini AI** to analyze the listings and generate tailored resume keywords, bullet points, and skills — all delivered to your inbox every morning.
+Scrapes Data Engineer jobs from **Indeed, LinkedIn & Glassdoor** across India, Middle East & Remote, then uses **GitHub Models** to analyze the listings and generate tailored resume keywords, bullet points, and skills — all delivered to your inbox every morning.
 
 ---
 
@@ -14,8 +14,8 @@ Scrapes Data Engineer jobs from **Indeed, LinkedIn & Glassdoor** across India, M
 | **Location filters** | India, Middle East (UAE), Remote — fully customizable |
 | **AI Resume Optimizer** | Extracts ATS keywords, writes bullet points, identifies skill gaps |
 | **Daily email alerts** | Beautiful HTML emails with job cards + AI analysis |
-| **100% free** | GitHub Actions (2000 min/mo) + Gemini API (free tier) |
-| **Zero dependencies to host** | No server, no database, no paid APIs |
+| **100% free** | GitHub Actions (2000 min/mo) + GitHub Models (built-in free tier) |
+| **Zero external API keys** | Uses the built-in `GITHUB_TOKEN` |
 
 ## 📧 What You Receive Daily
 
@@ -42,20 +42,12 @@ git clone https://github.com/gouravyadav32/Job_List.git
 - Create an app password named `job-alerts`
 - Copy the 16-character password
 
-### 3. Get a Gemini API Key (free)
-
-- Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-- Click **Create API Key** — no credit card needed
-
-### 4. Add GitHub Secrets
-
 Go to **Settings → Secrets and variables → Actions → New repository secret** and add:
 
 | Secret Name | Value |
 |---|---|
 | `GMAIL_USER` | Your Gmail address |
 | `GMAIL_APP_PASS` | 16-char App Password from step 2 |
-| `GEMINI_API_KEY` | API key from step 3 |
 | `TO_EMAIL` | *(Optional)* Delivery address if different from `GMAIL_USER` |
 
 ### 5. Test it
@@ -126,7 +118,7 @@ Job_List/
 │  Job 2: resume-optimizer                                │
 │  ├── Download jobs_data.json artifact                   │
 │  ├── Build context from job descriptions                │
-│  ├── Call Gemini API (gemini-2.0-flash)                 │
+│  ├── Call GitHub Models API (gpt-4o-mini)                 │
 │  │   └── Extract keywords, write summary & bullets      │
 │  └── Send HTML email with AI analysis                   │
 └─────────────────────────────────────────────────────────┘

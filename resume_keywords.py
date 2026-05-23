@@ -1,14 +1,13 @@
 """
-Resume Keyword Optimizer — powered by Google Gemini API (free tier).
+Resume Keyword Optimizer — powered by GitHub Models (free tier).
 
 Reads jobs_data.json produced by job_alert.py, sends job descriptions to
-Gemini 2.0 Flash via Google's free API, and emails you:
+gpt-4o-mini via GitHub's free API, and emails you:
   • Top ATS keywords to add to your resume
   • A tailored professional summary
   • Suggested bullet points for each role category
 
-Requires one extra GitHub Secret:
-  GEMINI_API_KEY  — free at https://aistudio.google.com/apikey
+Uses the built-in GITHUB_TOKEN — no external API keys required!
 """
 
 import json
@@ -24,10 +23,10 @@ from datetime import datetime
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
 TO_EMAIL   = os.environ["GMAIL_USER"]
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-MODEL = "gemini-2.0-flash"   # free tier, no rate-limit issues from CI/CD
+GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
+MODEL = "gpt-4o-mini"   # free tier on GitHub Models
 
 JOBS_FILE = "jobs_data.json"
 
@@ -52,9 +51,9 @@ def build_job_context(all_results):
     return "\n---\n".join(lines)
 
 
-# ── GEMINI API (no SDK needed — plain HTTP) ────────────────────────────────────
-def call_gemini(prompt, max_tokens=2048, max_retries=3):
-    """Call Google Gemini's OpenAI-compatible API with retry logic for rate limits."""
+# ── GITHUB MODELS API (no SDK needed — plain HTTP) ────────────────────────────
+def call_github_models(prompt, max_tokens=2048, max_retries=3):
+    """Call GitHub's OpenAI-compatible API with retry logic for rate limits."""
     import time
     import re
 
@@ -76,11 +75,13 @@ def call_gemini(prompt, max_tokens=2048, max_retries=3):
 
     for attempt in range(1, max_retries + 1):
         req = urllib.request.Request(
-            GEMINI_API_URL,
+            GITHUB_MODELS_URL,
             data=payload,
             headers={
-                "Authorization": f"Bearer {GEMINI_API_KEY}",
+                "Authorization": f"Bearer {GITHUB_TOKEN}",
                 "Content-Type": "application/json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "Accept": "application/vnd.github+json"
             },
             method="POST",
         )
@@ -98,10 +99,10 @@ def call_gemini(prompt, max_tokens=2048, max_retries=3):
                 print(f"[WARN] Rate limited (attempt {attempt}/{max_retries}). Retrying in {wait}s...")
                 time.sleep(wait)
                 continue
-            print(f"[ERROR] Gemini API {e.code}: {body}")
+            print(f"[ERROR] GitHub Models API {e.code}: {body}")
             return None
         except Exception as e:
-            print(f"[ERROR] Gemini API call failed: {e}")
+            print(f"[ERROR] GitHub Models API call failed: {e}")
             return None
 
 
@@ -134,13 +135,13 @@ def build_email_html(ai_response, total_jobs):
 <div style="max-width:680px;margin:0 auto;padding:24px 16px;">
   <div style="background:linear-gradient(135deg,#7c3aed,#ec4899);border-radius:12px;padding:24px;color:#fff;margin-bottom:24px;">
     <h1 style="margin:0;font-size:22px;">🎯 Resume Keyword Optimizer</h1>
-    <p style="margin:6px 0 0;opacity:.85;">{today} &nbsp;·&nbsp; Analyzed {total_jobs} job listings &nbsp;·&nbsp; Powered by Gemini AI</p>
+    <p style="margin:6px 0 0;opacity:.85;">{today} &nbsp;·&nbsp; Analyzed {total_jobs} job listings &nbsp;·&nbsp; Powered by GitHub Models</p>
   </div>
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;margin-bottom:16px;">
     {ai_response}
   </div>
   <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:32px;">
-    Powered by GitHub Actions + Google Gemini · Free AI-powered analysis
+    Powered by GitHub Actions + GitHub Models · Free AI-powered analysis
   </p>
 </div>
 </body></html>"""
@@ -180,12 +181,12 @@ def main():
     if len(job_context) > 12000:
         job_context = job_context[:12000] + "\n... [truncated for token limit]"
 
-    print("⏳ Waiting 30 seconds to respect Gemini API rate limits (15 requests/min)...")
+    print("⏳ Waiting 5 seconds to respect GitHub Models API rate limits...")
     import time
-    time.sleep(30)
+    time.sleep(5)
 
-    print(f"🤖 Calling Gemini API ({MODEL})...")
-    ai_response = call_gemini(get_keywords_prompt(job_context))
+    print(f"🤖 Calling GitHub Models API ({MODEL})...")
+    ai_response = call_github_models(get_keywords_prompt(job_context))
 
     if not ai_response:
         print("❌ Failed to get AI response. Skipping email.")
