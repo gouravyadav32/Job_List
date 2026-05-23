@@ -48,7 +48,7 @@ Go to **Settings → Secrets and variables → Actions → New repository secret
 |---|---|
 | `GMAIL_USER` | Your Gmail address |
 | `GMAIL_APP_PASS` | 16-char App Password from step 2 |
-| `TO_EMAIL` | *(Optional)* Delivery address if different from `GMAIL_USER` |
+| `TO_GMAIL` | *(Optional)* Delivery address if different from `GMAIL_USER` |
 
 ### 5. Test it
 
