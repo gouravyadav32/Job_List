@@ -79,74 +79,159 @@ const steps = [
   },
 ];
 
-const pyCode = `import feedparser, smtplib, os
+const pyCode = `
+import jobspy
+import pandas as pd
+import smtplib
+import os
+import json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote_plus
 
-GMAIL_USER = os.environ["GMAIL_USER"]
-GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
-TO_EMAIL   = os.environ.get("TO_EMAIL", GMAIL_USER)
+# ── CONFIG (set these as GitHub Secrets) ──────────────────────────────────────
+GMAIL_USER   = os.environ["GMAIL_USER"]          # your@gmail.com
+GMAIL_PASS   = os.environ["GMAIL_APP_PASS"]      # Gmail App Password (not real password)
+TO_EMAIL     = os.environ["GMAIL_USER"]
 
-# âœï¸  EDIT THESE â€” your target roles & locations
+# ── JOB SEARCH QUERIES ────────────────────────────────────────────────────────
+# Customize: add/remove dicts. location="" means remote/anywhere.
 SEARCHES = [
-    {"title": "Data Engineer",       "keywords": "data engineer",            "location": "remote"},
-    {"title": "Databricks Engineer", "keywords": "databricks spark",         "location": "remote"},
-    {"title": "Azure Data Engineer", "keywords": "azure data factory spark", "location": "remote"},
+    {"title": "Data Engineer (India)",        "keywords": "data engineer",           "location": "India",                "country": "india"},
+    {"title": "Data Engineer (Middle East)",  "keywords": "data engineer",           "location": "Middle East",          "country": "ae"},
+    {"title": "Data Engineer (Remote)",       "keywords": "data engineer",           "location": "remote",               "country": "usa"},
 ]
-HOURS_BACK = 24
 
-def indeed_rss(kw, loc):
-    return f"https://www.indeed.com/rss?q={quote_plus(kw)}&l={quote_plus(loc)}&sort=date&fromage=1"
+HOURS_BACK = 24   # only show jobs posted in the last N hours
 
+# ── FETCH & FILTER ────────────────────────────────────────────────────────────
 def fetch_jobs(search):
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=HOURS_BACK)
-    jobs = []
+    jobs_list = []
+    
     try:
-        feed = feedparser.parse(indeed_rss(search["keywords"], search["location"]))
-        for e in feed.entries[:20]:
-            p = e.get("published_parsed")
-            if p and datetime(*p[:6], tzinfo=timezone.utc) < cutoff:
-                continue
-            jobs.append({"title": e.get("title",""), "company": e.get("author",""),
-                         "link": e.get("link",""),   "published": e.get("published",""),
-                         "summary": e.get("summary","")[:300]})
-    except Exception as ex:
-        print(f"Feed error: {ex}")
-    return jobs
+        loc = search.get("location")
+        is_remote = False
+        if loc and loc.lower() == "remote":
+            is_remote = True
+            loc = None
+            
+        # JobSpy automatically handles bypassing bot protection for Indeed, LinkedIn, etc.
+        jobs_df = jobspy.scrape_jobs(
+            site_name=["indeed", "linkedin", "glassdoor"],
+            search_term=search["keywords"],
+            location=loc,
+            is_remote=is_remote,
+            results_wanted=15,
+            hours_old=HOURS_BACK,
+            country_indeed=search.get('country', 'usa')
+        )
+    except Exception as e:
+        print(f"[WARN] JobSpy failed for '{search['keywords']}': {e}")
+        return []
 
-def build_html(results):
+    if jobs_df is None or jobs_df.empty:
+        return []
+
+    # Process dataframe into the list format expected by the email template
+    for _, row in jobs_df.iterrows():
+        # Clean up publication date
+        published = row.get("date_posted", "")
+        if pd.notnull(published):
+            published = str(published).split()[0]
+        else:
+            published = "Recent"
+
+        # Clean up summary/description
+        desc = row.get("description", "")
+        if pd.notnull(desc):
+            summary = str(desc).replace('\n', ' ')[:300]
+        else:
+            summary = "No description provided."
+
+        loc_str = str(row.get("location", ""))
+        if loc_str == "nan" or not loc_str:
+            loc_str = "Remote" if search.get("location", "").lower() == "remote" else "Location unknown"
+
+        jobs_list.append({
+            "title": str(row.get("title", "No title")),
+            "company": str(row.get("company", "Unknown")),
+            "location": loc_str,
+            "link": str(row.get("job_url", "")),
+            "source": str(row.get("site", "Unknown")).capitalize(),
+            "published": published,
+            "summary": summary
+        })
+        
+    return jobs_list
+
+# ── EMAIL BUILDER ─────────────────────────────────────────────────────────────
+def build_html(all_results):
     today = datetime.now().strftime("%B %d, %Y")
-    total = sum(len(j) for j in results.values())
     sections = ""
-    for title, jobs in results.items():
-        cards = "".join(f'''<div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:10px;">
-          <a href="{j['link']}" style="font-size:16px;font-weight:600;color:#1a56db;">{j['title']}</a>
-          <div style="color:#555;font-size:13px;">{j['company']} Â· {j['published']}</div>
-          <div style="color:#444;font-size:13px;margin-top:6px;">{j['summary']}â€¦</div>
-        </div>''' for j in jobs) if jobs else "<p style='color:#888'>No new listings.</p>"
-        sections += f"<h2>ðŸ” {title} ({len(jobs)} new)</h2>{cards}"
-    return f"""<html><body style="font-family:sans-serif;max-width:680px;margin:auto;padding:24px">
-      <h1 style="background:linear-gradient(135deg,#1a56db,#0ea5e9);color:#fff;padding:20px;border-radius:12px">
-        ðŸ“‹ Daily Job Alert Â· {today} Â· {total} listings</h1>
-      {sections}</body></html>"""
 
-def main():
-    results = {s["title"]: fetch_jobs(s) for s in SEARCHES}
-    total   = sum(len(j) for j in results.values())
+    for search, jobs in all_results.items():
+        if not jobs:
+            block = f"<p style='color:#888;font-style:italic;'>No new listings in the last {HOURS_BACK}h.</p>"
+        else:
+            cards = ""
+            for j in jobs:
+                cards += f"""
+            <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin-bottom:10px;background:#fff;">
+              <a href="{j['link']}" style="font-size:16px;font-weight:600;color:#1a56db;text-decoration:none;">{j['title']}</a>
+              <div style="color:#555;font-size:13px;margin:4px 0;">{j['company']} &nbsp;·&nbsp; {j['location']} &nbsp;·&nbsp; <span style="color:#16a34a;">{j['source']}</span> &nbsp;·&nbsp; {j['published']}</div>
+              <div style="color:#444;font-size:13px;margin-top:6px;">{j['summary']}…</div>
+            </div>"""
+        block = cards if jobs else block
+        sections += f"""
+      <h2 style="font-size:18px;margin:28px 0 10px;color:#1e293b;">🔍 {search} <span style="font-size:13px;color:#64748b;font-weight:normal;">({len(jobs)} new)</span></h2>
+      {block}"""
+
+    total = sum(len(j) for j in all_results.values())
+    return f"""
+<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;padding:0;">
+<div style="max-width:680px;margin:0 auto;padding:24px 16px;">
+  <div style="background:linear-gradient(135deg,#1a56db,#0ea5e9);border-radius:12px;padding:24px;color:#fff;margin-bottom:24px;">
+    <h1 style="margin:0;font-size:22px;">📋 Daily Job Alert</h1>
+    <p style="margin:6px 0 0;opacity:.85;">{today} &nbsp;·&nbsp; {total} new listings found</p>
+  </div>
+  {sections}
+  <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:32px;">
+    Powered by GitHub Actions + feedparser · Runs daily at 8 AM UTC
+  </p>
+</div>
+</body></html>"""
+
+# ── SEND EMAIL ────────────────────────────────────────────────────────────────
+def send_email(html_body, total_jobs):
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"ðŸ“‹ Daily Jobs â€” {total} new ({datetime.now().strftime('%b %d')})"
+    msg["Subject"] = f"📋 Daily Job Alert — {total_jobs} new listings ({datetime.now().strftime('%b %d')})"
     msg["From"]    = GMAIL_USER
     msg["To"]      = TO_EMAIL
-    msg.attach(MIMEText(build_html(results), "html"))
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
-        s.login(GMAIL_USER, GMAIL_PASS)
-        s.sendmail(GMAIL_USER, TO_EMAIL, msg.as_string())
-    print(f"âœ… Sent {total} jobs to {TO_EMAIL}")
+    msg.attach(MIMEText(html_body, "html"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(GMAIL_USER, GMAIL_PASS)
+        server.sendmail(GMAIL_USER, TO_EMAIL, msg.as_string())
+    print(f"✅ Email sent to {TO_EMAIL} with {total_jobs} jobs.")
+
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+def main():
+    all_results = {}
+    for search in SEARCHES:
+        print(f"Fetching: {search['title']}...")
+        jobs = fetch_jobs(search)
+        all_results[search["title"]] = jobs
+        print(f"  → {len(jobs)} jobs found")
+
+    total = sum(len(j) for j in all_results.values())
+    html  = build_html(all_results)
+    send_email(html, total)
 
 if __name__ == "__main__":
-    main()`;
+    main()
+
+`;
 
 const yamlCode = `name: Daily Job Alert
 on:
