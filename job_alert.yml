@@ -1,0 +1,29 @@
+name: Daily Job Alert
+
+on:
+  schedule:
+    - cron: "0 8 * * *"      # 8:00 AM UTC every day (adjust to your timezone)
+  workflow_dispatch:           # also lets you trigger manually from GitHub UI
+
+jobs:
+  send-job-alert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install feedparser
+
+      - name: Run job alert script
+        env:
+          GMAIL_USER:     ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          TO_EMAIL:       ${{ secrets.TO_EMAIL }}        # optional, defaults to GMAIL_USER
+        run: python job_alert.py
