@@ -1,2 +1,139 @@
-# Job_List
-Crawl and list down Job opportunities
+# 📋 Job Alert + 🎯 AI Resume Optimizer
+
+**Automated daily job scraping + AI-powered resume keyword analysis — completely free.**
+
+Scrapes Data Engineer jobs from **Indeed, LinkedIn & Glassdoor** across India, Middle East & Remote, then uses **Google Gemini AI** to analyze the listings and generate tailored resume keywords, bullet points, and skills — all delivered to your inbox every morning.
+
+---
+
+## ✨ Features
+
+| Feature | Details |
+|---|---|
+| **Multi-platform scraping** | Indeed, LinkedIn, Glassdoor via [JobSpy](https://github.com/Bunsly/JobSpy) |
+| **Location filters** | India, Middle East (UAE), Remote — fully customizable |
+| **AI Resume Optimizer** | Extracts ATS keywords, writes bullet points, identifies skill gaps |
+| **Daily email alerts** | Beautiful HTML emails with job cards + AI analysis |
+| **100% free** | GitHub Actions (2000 min/mo) + Gemini API (free tier) |
+| **Zero dependencies to host** | No server, no database, no paid APIs |
+
+## 📧 What You Receive Daily
+
+**Email 1 — Job Alert**
+> Fresh job listings with title, company, location, source, and description preview.
+
+**Email 2 — Resume Optimizer**
+> AI-generated ATS keywords, professional summary, achievement bullet points (X-Y-Z formula), categorized skills section, and missing skills alert.
+
+---
+
+## 🚀 Quick Setup (6 minutes)
+
+### 1. Fork / Clone this repo
+
+```bash
+git clone https://github.com/gouravyadav32/Job_List.git
+```
+
+### 2. Get a Gmail App Password
+
+- Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+- 2-Step Verification must be ON
+- Create an app password named `job-alerts`
+- Copy the 16-character password
+
+### 3. Get a Gemini API Key (free)
+
+- Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+- Click **Create API Key** — no credit card needed
+
+### 4. Add GitHub Secrets
+
+Go to **Settings → Secrets and variables → Actions → New repository secret** and add:
+
+| Secret Name | Value |
+|---|---|
+| `GMAIL_USER` | Your Gmail address |
+| `GMAIL_APP_PASS` | 16-char App Password from step 2 |
+| `GEMINI_API_KEY` | API key from step 3 |
+| `TO_EMAIL` | *(Optional)* Delivery address if different from `GMAIL_USER` |
+
+### 5. Test it
+
+Go to **Actions → Daily Job Alert → Run workflow** → check your inbox in ~30 seconds.
+
+After that, it runs automatically every day at **8:00 AM UTC**.
+
+---
+
+## 🔧 Customization
+
+### Change target roles & locations
+
+Edit the `SEARCHES` list in [`job_alert.py`](job_alert.py):
+
+```python
+SEARCHES = [
+    {"title": "Data Engineer (India)",       "keywords": "data engineer",  "location": "India",       "country": "india"},
+    {"title": "Data Engineer (Middle East)", "keywords": "data engineer",  "location": "Middle East", "country": "ae"},
+    {"title": "Data Engineer (Remote)",      "keywords": "data engineer",  "location": "remote",      "country": "usa"},
+]
+```
+
+### Change schedule
+
+Edit the cron in [`.github/workflows/job_alert.yml`](.github/workflows/job_alert.yml):
+
+```yaml
+schedule:
+  - cron: "0 8 * * *"       # 8 AM UTC daily
+  # - cron: "0 7 * * 1-5"   # Weekdays only at 7 AM UTC
+```
+
+### Change lookback window
+
+```python
+HOURS_BACK = 48  # show jobs from last 2 days instead of 24h
+```
+
+---
+
+## 📁 Project Structure
+
+```
+Job_List/
+├── .github/workflows/
+│   └── job_alert.yml          # GitHub Actions workflow (2 jobs)
+├── job_alert.py               # Job scraper + email sender
+├── resume_keywords.py         # AI resume optimizer (Gemini)
+├── preview.html               # Interactive setup guide (React)
+├── .gitignore
+└── README.md
+```
+
+## ⚙️ How It Works
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   GitHub Actions (daily)                 │
+│                                                         │
+│  Job 1: send-job-alert                                  │
+│  ├── Scrape Indeed, LinkedIn, Glassdoor via JobSpy       │
+│  ├── Send HTML email with job listings                  │
+│  └── Save jobs_data.json → upload as artifact           │
+│                         │                               │
+│                         ▼                               │
+│  Job 2: resume-optimizer                                │
+│  ├── Download jobs_data.json artifact                   │
+│  ├── Build context from job descriptions                │
+│  ├── Call Gemini API (gemini-2.0-flash)                 │
+│  │   └── Extract keywords, write summary & bullets      │
+│  └── Send HTML email with AI analysis                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📄 License
+
+MIT — use it, fork it, customize it.
