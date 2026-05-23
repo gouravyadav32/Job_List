@@ -1,4 +1,5 @@
-import feedparser
+import jobspy
+import pandas as pd
 import smtplib
 import os
 import json
@@ -22,47 +23,53 @@ SEARCHES = [
 
 HOURS_BACK = 24   # only show jobs posted in the last N hours
 
-# ── RSS FEED BUILDERS ─────────────────────────────────────────────────────────
-def indeed_rss(keywords, location):
-    q = quote_plus(keywords)
-    l = quote_plus(location)
-    return f"https://www.indeed.com/rss?q={q}&l={l}&sort=date&fromage=1"
-
-def linkedin_rss(keywords):
-    q = quote_plus(keywords)
-    # LinkedIn's public job RSS (no auth needed)
-    return f"https://www.linkedin.com/jobs/search/?keywords={q}&f_TPR=r86400&format=rss"
-
 # ── FETCH & FILTER ────────────────────────────────────────────────────────────
 def fetch_jobs(search):
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=HOURS_BACK)
-    jobs   = []
+    jobs_list = []
+    
+    try:
+        # JobSpy automatically handles bypassing bot protection for Indeed, LinkedIn, etc.
+        jobs_df = jobspy.scrape_jobs(
+            site_name=["indeed", "linkedin", "glassdoor"],
+            search_term=search["keywords"],
+            location=search["location"] if search["location"] else None,
+            results_wanted=15,
+            hours_old=HOURS_BACK,
+            country_epa='USA'
+        )
+    except Exception as e:
+        print(f"[WARN] JobSpy failed for '{search['keywords']}': {e}")
+        return []
 
-    feeds = [
-        ("Indeed",   indeed_rss(search["keywords"], search["location"])),
-    ]
+    if jobs_df is None or jobs_df.empty:
+        return []
 
-    for source, url in feeds:
-        try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:20]:           # cap per feed
-                published = entry.get("published_parsed")
-                if published:
-                    pub_dt = datetime(*published[:6], tzinfo=timezone.utc)
-                    if pub_dt < cutoff:
-                        continue
-                jobs.append({
-                    "title":     entry.get("title", "No title"),
-                    "company":   entry.get("author", ""),
-                    "link":      entry.get("link",  ""),
-                    "source":    source,
-                    "published": entry.get("published", ""),
-                    "summary":   entry.get("summary", "")[:300],
-                })
-        except Exception as e:
-            print(f"[WARN] {source} feed failed for '{search['keywords']}': {e}")
+    # Process dataframe into the list format expected by the email template
+    for _, row in jobs_df.iterrows():
+        # Clean up publication date
+        published = row.get("date_posted", "")
+        if pd.notnull(published):
+            published = str(published).split()[0]
+        else:
+            published = "Recent"
 
-    return jobs
+        # Clean up summary/description
+        desc = row.get("description", "")
+        if pd.notnull(desc):
+            summary = str(desc).replace('\n', ' ')[:300]
+        else:
+            summary = "No description provided."
+
+        jobs_list.append({
+            "title": str(row.get("title", "No title")),
+            "company": str(row.get("company", "Unknown")),
+            "link": str(row.get("job_url", "")),
+            "source": str(row.get("site", "Unknown")).capitalize(),
+            "published": published,
+            "summary": summary
+        })
+        
+    return jobs_list
 
 # ── EMAIL BUILDER ─────────────────────────────────────────────────────────────
 def build_html(all_results):
