@@ -16,9 +16,9 @@ TO_EMAIL     = os.environ["GMAIL_USER"]
 # ── JOB SEARCH QUERIES ────────────────────────────────────────────────────────
 # Customize: add/remove dicts. location="" means remote/anywhere.
 SEARCHES = [
-    {"title": "Data Engineer",        "keywords": "data engineer",           "location": "remote"},
-    {"title": "Databricks Engineer",  "keywords": "databricks spark",        "location": "remote"},
-    {"title": "Azure Data Engineer",  "keywords": "azure data factory spark","location": "remote"},
+    {"title": "Data Engineer (India)",        "keywords": "data engineer",           "location": "India",                "country": "india"},
+    {"title": "Data Engineer (Middle East)",  "keywords": "data engineer",           "location": "Middle East",          "country": "ae"},
+    {"title": "Data Engineer (Remote)",       "keywords": "data engineer",           "location": "remote",               "country": "usa"},
 ]
 
 HOURS_BACK = 24   # only show jobs posted in the last N hours
@@ -28,14 +28,21 @@ def fetch_jobs(search):
     jobs_list = []
     
     try:
+        loc = search.get("location")
+        is_remote = False
+        if loc and loc.lower() == "remote":
+            is_remote = True
+            loc = None
+            
         # JobSpy automatically handles bypassing bot protection for Indeed, LinkedIn, etc.
         jobs_df = jobspy.scrape_jobs(
             site_name=["indeed", "linkedin", "glassdoor"],
             search_term=search["keywords"],
-            location=search["location"] if search["location"] else None,
+            location=loc,
+            is_remote=is_remote,
             results_wanted=15,
             hours_old=HOURS_BACK,
-            country_epa='USA'
+            country_indeed=search.get('country', 'usa')
         )
     except Exception as e:
         print(f"[WARN] JobSpy failed for '{search['keywords']}': {e}")
@@ -60,9 +67,14 @@ def fetch_jobs(search):
         else:
             summary = "No description provided."
 
+        loc_str = str(row.get("location", ""))
+        if loc_str == "nan" or not loc_str:
+            loc_str = "Remote" if search.get("location", "").lower() == "remote" else "Location unknown"
+
         jobs_list.append({
             "title": str(row.get("title", "No title")),
             "company": str(row.get("company", "Unknown")),
+            "location": loc_str,
             "link": str(row.get("job_url", "")),
             "source": str(row.get("site", "Unknown")).capitalize(),
             "published": published,
@@ -85,7 +97,7 @@ def build_html(all_results):
                 cards += f"""
             <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin-bottom:10px;background:#fff;">
               <a href="{j['link']}" style="font-size:16px;font-weight:600;color:#1a56db;text-decoration:none;">{j['title']}</a>
-              <div style="color:#555;font-size:13px;margin:4px 0;">{j['company']} &nbsp;·&nbsp; <span style="color:#16a34a;">{j['source']}</span> &nbsp;·&nbsp; {j['published']}</div>
+              <div style="color:#555;font-size:13px;margin:4px 0;">{j['company']} &nbsp;·&nbsp; {j['location']} &nbsp;·&nbsp; <span style="color:#16a34a;">{j['source']}</span> &nbsp;·&nbsp; {j['published']}</div>
               <div style="color:#444;font-size:13px;margin-top:6px;">{j['summary']}…</div>
             </div>"""
         block = cards if jobs else block
