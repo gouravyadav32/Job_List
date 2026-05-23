@@ -3,6 +3,7 @@ import pandas as pd
 import smtplib
 import os
 import json
+import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timezone, timedelta
@@ -20,8 +21,8 @@ TO_EMAIL     = os.environ["TO_GMAIL"]
 TRANSFORMATION_KEYWORDS = (
     '"Business Transformation" OR "Transformation Lead" OR "Transformation Director" OR '
     '"Change Management" OR "Strategic Initiatives" OR "Digital Transformation" OR '
-    '"Agile Transformation" OR "Chief Transformation Officer" OR "Enterprise Transformation"'
-    '"Business transformation" OR "digital transformation" OR "operational excellence"'
+    '"Agile Transformation" OR "Chief Transformation Officer" OR "Enterprise Transformation" OR '
+    '"Business transformation" OR "digital transformation" OR "operational excellence" OR '
     '"process optimisation" OR "Transformation execution" OR "lean Six sigma - black belt" OR "Strategy and Innovation"'
 )
 
@@ -63,6 +64,14 @@ def fetch_jobs(search):
 
     # Process dataframe into the list format expected by the email template
     for _, row in jobs_df.iterrows():
+        title_str = str(row.get("title", "No title"))
+        desc_str = str(row.get("description", ""))
+
+        # Exclude technical/coding jobs based on keywords
+        text_to_check = (title_str + " " + desc_str).lower()
+        if re.search(r'\b(sql|coding|programming|developer|software engineer)\b', text_to_check):
+            continue
+
         # Clean up publication date
         published = row.get("date_posted", "")
         if pd.notnull(published):
