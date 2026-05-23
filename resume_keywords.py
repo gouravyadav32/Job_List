@@ -1,14 +1,14 @@
 """
-Resume Keyword Optimizer — powered by Groq (free) + Llama 3 (open-source).
+Resume Keyword Optimizer — powered by Google Gemini API (free tier).
 
 Reads jobs_data.json produced by job_alert.py, sends job descriptions to
-Llama 3 via Groq's free API, and emails you:
+Gemini 2.0 Flash via Google's free API, and emails you:
   • Top ATS keywords to add to your resume
   • A tailored professional summary
   • Suggested bullet points for each role category
 
 Requires one extra GitHub Secret:
-  GROQ_API_KEY  — free at https://console.groq.com/keys
+  GEMINI_API_KEY  — free at https://aistudio.google.com/apikey
 """
 
 import json
@@ -24,10 +24,10 @@ from datetime import datetime
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
 TO_EMAIL   = os.environ.get("TO_EMAIL", GMAIL_USER)
-GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL = "llama-3.3-70b-versatile"   # free-tier, open-source
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+MODEL = "gemini-2.0-flash"   # free tier, no rate-limit issues from CI/CD
 
 JOBS_FILE = "jobs_data.json"
 
@@ -52,9 +52,9 @@ def build_job_context(all_results):
     return "\n---\n".join(lines)
 
 
-# ── GROQ API (no SDK needed — plain HTTP) ─────────────────────────────────────
-def call_groq(prompt, max_tokens=2048):
-    """Call Groq's OpenAI-compatible API using only stdlib (no pip install)."""
+# ── GEMINI API (no SDK needed — plain HTTP) ────────────────────────────────────
+def call_gemini(prompt, max_tokens=2048):
+    """Call Google Gemini's OpenAI-compatible API using only stdlib (no pip install)."""
     payload = json.dumps({
         "model": MODEL,
         "messages": [
@@ -72,10 +72,10 @@ def call_groq(prompt, max_tokens=2048):
     }).encode("utf-8")
 
     req = urllib.request.Request(
-        GROQ_API_URL,
+        GEMINI_API_URL,
         data=payload,
         headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {GEMINI_API_KEY}",
             "Content-Type": "application/json",
         },
         method="POST",
@@ -87,10 +87,10 @@ def call_groq(prompt, max_tokens=2048):
             return data["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as e:
         body = e.read().decode()
-        print(f"[ERROR] Groq API {e.code}: {body}")
+        print(f"[ERROR] Gemini API {e.code}: {body}")
         return None
     except Exception as e:
-        print(f"[ERROR] Groq API call failed: {e}")
+        print(f"[ERROR] Gemini API call failed: {e}")
         return None
 
 
@@ -123,13 +123,13 @@ def build_email_html(ai_response, total_jobs):
 <div style="max-width:680px;margin:0 auto;padding:24px 16px;">
   <div style="background:linear-gradient(135deg,#7c3aed,#ec4899);border-radius:12px;padding:24px;color:#fff;margin-bottom:24px;">
     <h1 style="margin:0;font-size:22px;">🎯 Resume Keyword Optimizer</h1>
-    <p style="margin:6px 0 0;opacity:.85;">{today} &nbsp;·&nbsp; Analyzed {total_jobs} job listings &nbsp;·&nbsp; Powered by Llama 3</p>
+    <p style="margin:6px 0 0;opacity:.85;">{today} &nbsp;·&nbsp; Analyzed {total_jobs} job listings &nbsp;·&nbsp; Powered by Gemini AI</p>
   </div>
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;margin-bottom:16px;">
     {ai_response}
   </div>
   <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:32px;">
-    Powered by GitHub Actions + Groq (Llama 3) · Free &amp; Open Source
+    Powered by GitHub Actions + Google Gemini · Free AI-powered analysis
   </p>
 </div>
 </body></html>"""
@@ -169,8 +169,8 @@ def main():
     if len(job_context) > 12000:
         job_context = job_context[:12000] + "\n... [truncated for token limit]"
 
-    print(f"🤖 Calling Groq API ({MODEL})...")
-    ai_response = call_groq(get_keywords_prompt(job_context))
+    print(f"🤖 Calling Gemini API ({MODEL})...")
+    ai_response = call_gemini(get_keywords_prompt(job_context))
 
     if not ai_response:
         print("❌ Failed to get AI response. Skipping email.")
