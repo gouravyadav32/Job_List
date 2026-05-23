@@ -27,7 +27,7 @@ TO_EMAIL   = os.environ["GMAIL_USER"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-MODEL = "gemini-1.5-flash"   # free tier, more stable limits than 2.0
+MODEL = "gemini-2.0-flash"   # free tier, no rate-limit issues from CI/CD
 
 JOBS_FILE = "jobs_data.json"
 
@@ -179,6 +179,10 @@ def main():
     # Truncate if too large (Groq free tier has token limits)
     if len(job_context) > 12000:
         job_context = job_context[:12000] + "\n... [truncated for token limit]"
+
+    print("⏳ Waiting 30 seconds to respect Gemini API rate limits (15 requests/min)...")
+    import time
+    time.sleep(30)
 
     print(f"🤖 Calling Gemini API ({MODEL})...")
     ai_response = call_gemini(get_keywords_prompt(job_context))
