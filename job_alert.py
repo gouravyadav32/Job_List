@@ -10,7 +10,7 @@ from urllib.parse import quote_plus
 # ── CONFIG (set these as GitHub Secrets) ──────────────────────────────────────
 GMAIL_USER   = os.environ["GMAIL_USER"]          # your@gmail.com
 GMAIL_PASS   = os.environ["GMAIL_APP_PASS"]      # Gmail App Password (not real password)
-TO_EMAIL     = os.environ.get("TO_EMAIL", GMAIL_USER)
+TO_EMAIL     = os.environ["GMAIL_USER"]
 
 # ── JOB SEARCH QUERIES ────────────────────────────────────────────────────────
 # Customize: add/remove dicts. location="" means remote/anywhere.
