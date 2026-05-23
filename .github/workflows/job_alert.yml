@@ -36,7 +36,7 @@ jobs:
           path: jobs_data.json
           retention-days: 1
 
-  # ── JOB 2: AI Resume Keyword Optimizer (Groq + Llama 3) ───────────────────
+  # ── JOB 2: AI Resume Keyword Optimizer (Google Gemini) ──────────────────────
   resume-optimizer:
     runs-on: ubuntu-latest
     needs: send-job-alert       # waits for Job 1 to finish
