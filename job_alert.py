@@ -123,7 +123,7 @@ def build_html(all_results):
   </div>
   {sections}
   <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:32px;">
-    Powered by GitHub Actions + feedparser · Runs daily at 8 AM UTC
+    Powered by GitHub Actions + JobSpy · Runs daily at 8 AM IST
   </p>
 </div>
 </body></html>"""

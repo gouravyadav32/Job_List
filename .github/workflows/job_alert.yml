@@ -2,7 +2,7 @@ name: Daily Job Alert
 
 on:
   schedule:
-    - cron: "0 8 * * *"      # 8:00 AM UTC every day (adjust to your timezone)
+    - cron: "30 2 * * *"      # 2:30 AM UTC = 8:00 AM IST every day
   workflow_dispatch:           # also lets you trigger manually from GitHub UI
 
 permissions:

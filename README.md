@@ -54,7 +54,7 @@ Go to **Settings → Secrets and variables → Actions → New repository secret
 
 Go to **Actions → Daily Job Alert → Run workflow** → check your inbox in ~30 seconds.
 
-After that, it runs automatically every day at **8:00 AM UTC**.
+After that, it runs automatically every day at **8:00 AM IST** (2:30 AM UTC).
 
 ---
 
@@ -78,8 +78,8 @@ Edit the cron in [`.github/workflows/job_alert.yml`](.github/workflows/job_alert
 
 ```yaml
 schedule:
-  - cron: "0 8 * * *"       # 8 AM UTC daily
-  # - cron: "0 7 * * 1-5"   # Weekdays only at 7 AM UTC
+  - cron: "30 2 * * *"      # 2:30 AM UTC = 8:00 AM IST daily
+  # - cron: "30 1 * * 1-5"  # Weekdays only at 1:30 AM UTC (7:00 AM IST)
 ```
 
 ### Change lookback window
