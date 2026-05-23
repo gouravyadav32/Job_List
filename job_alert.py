@@ -15,10 +15,18 @@ TO_EMAIL     = os.environ["GMAIL_USER"]
 
 # ── JOB SEARCH QUERIES ────────────────────────────────────────────────────────
 # Customize: add/remove dicts. location="" means remote/anywhere.
+
+# Combined keywords to cover the 14 requested Transformation & Change roles
+TRANSFORMATION_KEYWORDS = (
+    '"Business Transformation" OR "Transformation Lead" OR "Transformation Director" OR '
+    '"Change Management" OR "Strategic Initiatives" OR "Digital Transformation" OR '
+    '"Agile Transformation" OR "Chief Transformation Officer" OR "Enterprise Transformation"'
+)
+
 SEARCHES = [
-    {"title": "Data Engineer (India)",        "keywords": "data engineer",           "location": "India",                "country": "india"},
-    {"title": "Data Engineer (Middle East)",  "keywords": "data engineer",           "location": "Middle East",          "country": "ae"},
-    {"title": "Data Engineer (Remote)",       "keywords": "data engineer",           "location": "remote",               "country": "usa"},
+    {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "india"},
+    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "Middle East", "country": "ae"},
+    {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
 ]
 
 HOURS_BACK = 24   # only show jobs posted in the last N hours

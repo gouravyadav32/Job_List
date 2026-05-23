@@ -2,7 +2,7 @@
 
 **Automated daily job scraping + AI-powered resume keyword analysis — completely free.**
 
-Scrapes Data Engineer jobs from **Indeed, LinkedIn & Glassdoor** across India, Middle East & Remote, then uses **GitHub Models** to analyze the listings and generate tailored resume keywords, bullet points, and skills — all delivered to your inbox every morning.
+Scrapes Transformation Manager, Change Management & Agile roles from **Indeed, LinkedIn & Glassdoor** across India, Middle East & Remote, then uses **GitHub Models** to analyze the listings and generate tailored resume keywords, bullet points, and skills — all delivered to your inbox every morning.
 
 ---
 
