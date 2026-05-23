@@ -27,7 +27,7 @@ TO_EMAIL   = os.environ["GMAIL_USER"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-MODEL = "gemini-2.0-flash"   # free tier, no rate-limit issues from CI/CD
+MODEL = "gemini-1.5-flash"   # free tier, more stable limits than 2.0
 
 JOBS_FILE = "jobs_data.json"
 
