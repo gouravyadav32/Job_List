@@ -30,7 +30,7 @@ jobs:
         env:
           GMAIL_USER:     ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          TO_EMAIL:       ${{ secrets.TO_EMAIL }}        # optional, defaults to GMAIL_USER
+          TO_GMAIL:       ${{ secrets.TO_GMAIL }}
         run: python job_alert.py
 
       - name: Upload job data for resume optimizer
@@ -63,6 +63,6 @@ jobs:
         env:
           GMAIL_USER:     ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          TO_EMAIL:       ${{ secrets.TO_EMAIL }}
+          TO_GMAIL:       ${{ secrets.TO_GMAIL }}
           GITHUB_TOKEN:   ${{ secrets.GITHUB_TOKEN }}
         run: python resume_keywords.py

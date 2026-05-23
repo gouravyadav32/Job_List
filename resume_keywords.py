@@ -22,7 +22,7 @@ from datetime import datetime
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_PASS = os.environ["GMAIL_APP_PASS"]
-TO_EMAIL   = os.environ["GMAIL_USER"]
+TO_EMAIL   = os.environ["TO_GMAIL"]
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
 GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
