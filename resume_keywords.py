@@ -108,22 +108,22 @@ def call_github_models(prompt, max_tokens=2048, max_retries=3):
 
 # ── PROMPTS ───────────────────────────────────────────────────────────────────
 def get_keywords_prompt(job_context):
-    return f"""Analyze the following job listings and provide resume optimization advice.
+    return f"""Analyze the following job listings and provide resume optimization advice tailored specifically to the types of roles described.
 
 JOB LISTINGS:
 {job_context}
 
 Please provide the following in a well-structured format:
 
-1. **TOP 25 ATS KEYWORDS** — The most frequently mentioned and important technical skills, tools, and qualifications across these jobs. Rank them by importance.
+1. **TOP 25 ATS KEYWORDS** — The most frequently mentioned and important skills, tools, and qualifications across these specific jobs. Rank them by importance.
 
-2. **PROFESSIONAL SUMMARY** — Write a tailored 3-4 sentence professional summary that a Data Engineer could use, naturally incorporating the top keywords.
+2. **PROFESSIONAL SUMMARY** — Write a tailored 3-4 sentence professional summary that a candidate applying for these roles could use, naturally incorporating the top keywords.
 
-3. **SUGGESTED BULLET POINTS** — Write 8-10 strong resume bullet points (using the X-Y-Z formula: Accomplished [X] as measured by [Y], by doing [Z]) that align with these job requirements.
+3. **SUGGESTED BULLET POINTS** — Write 8-10 strong resume bullet points (using the X-Y-Z formula: Accomplished [X] as measured by [Y], by doing [Z]) that align with these specific job requirements.
 
-4. **SKILLS SECTION** — Organize the extracted skills into categories (e.g., Cloud Platforms, Databases, Programming Languages, ETL/Pipeline Tools, etc.)
+4. **SKILLS SECTION** — Organize the extracted skills into logical categories based on what these roles demand.
 
-5. **MISSING SKILLS ALERT** — Identify any trending skills or certifications mentioned frequently that a candidate should consider learning.
+5. **MISSING SKILLS ALERT** — Identify any trending skills or certifications mentioned frequently that a candidate should consider learning for these positions.
 
 Format everything in clean HTML with inline styles for email rendering. Use a professional color scheme."""
 
