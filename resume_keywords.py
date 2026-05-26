@@ -34,9 +34,10 @@ MODEL = "gpt-4o-mini"   # free tier on GitHub Models
 
 JOBS_FILE = "jobs_data.json"
 
-# How many jobs to deep-analyze (API rate-limit friendly).
-# The top N jobs per category are picked by order in the JSON.
-MAX_JOBS_PER_CATEGORY = 3
+# Global cap on per-job deep-analysis to stay within API rate limits.
+# All jobs across ALL categories are analyzed up to this number.
+# GitHub Models free tier: ~10 req/min — 25 jobs + 1 overview ≈ 3.5 min with 8 s delays.
+MAX_TOTAL_JOBS = 25
 
 # ── LOAD JOB DATA ─────────────────────────────────────────────────────────────
 def load_jobs():
@@ -307,37 +308,46 @@ def main():
     if not overview_html:
         overview_html = "<p style='color:#ef4444;'>⚠️ Overview analysis unavailable (API error).</p>"
 
-    # ── 2. Per-job analysis ────────────────────────────────────────────────
+    # ── 2. Per-job analysis — ALL jobs across every category ──────────────
     per_job_sections = []
 
-    for category, jobs in all_results.items():
-        selected = jobs[:MAX_JOBS_PER_CATEGORY]
-        print(f"\n📂 Category: {category} — analyzing top {len(selected)} job(s)…")
+    # Flatten all jobs preserving category label, then cap globally.
+    all_jobs_for_analysis = [
+        (category, job)
+        for category, jobs in all_results.items()
+        for job in jobs
+    ]
 
-        for job in selected:
-            title   = job.get("title", "Unknown")
-            company = job.get("company", "Unknown")
-            print(f"  🔎 {title} @ {company}")
+    if len(all_jobs_for_analysis) > MAX_TOTAL_JOBS:
+        print(f"[INFO] {len(all_jobs_for_analysis)} jobs found — capping at {MAX_TOTAL_JOBS} to respect API limits.")
+        all_jobs_for_analysis = all_jobs_for_analysis[:MAX_TOTAL_JOBS]
+    else:
+        print(f"[INFO] Analyzing all {len(all_jobs_for_analysis)} jobs.")
 
-            # Polite delay between calls to stay within rate limits
-            time.sleep(8)
+    for idx, (category, job) in enumerate(all_jobs_for_analysis, start=1):
+        title   = job.get("title", "Unknown")
+        company = job.get("company", "Unknown")
+        print(f"  [{idx}/{len(all_jobs_for_analysis)}] 🔎 {title} @ {company} ({category})")
 
-            analysis_html = call_github_models(
-                per_job_prompt(job, RESUME_TEMPLATE),
-                max_tokens=1200,
-            )
+        # Polite delay between calls to stay within rate limits
+        time.sleep(8)
 
-            if not analysis_html:
-                analysis_html = "<p style='color:#ef4444;'>⚠️ Analysis unavailable for this job.</p>"
+        analysis_html = call_github_models(
+            per_job_prompt(job, RESUME_TEMPLATE),
+            max_tokens=1200,
+        )
 
-            per_job_sections.append({
-                "title":    title,
-                "company":  company,
-                "location": job.get("location", ""),
-                "source":   job.get("source", ""),
-                "link":     job.get("link", "#"),
-                "analysis": analysis_html,
-            })
+        if not analysis_html:
+            analysis_html = "<p style='color:#ef4444;'>⚠️ Analysis unavailable for this job.</p>"
+
+        per_job_sections.append({
+            "title":    title,
+            "company":  company,
+            "location": job.get("location", ""),
+            "source":   job.get("source", ""),
+            "link":     job.get("link", "#"),
+            "analysis": analysis_html,
+        })
 
     print(f"\n✅ Analyzed {len(per_job_sections)} jobs individually.")
 
