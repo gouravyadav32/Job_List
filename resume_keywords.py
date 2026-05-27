@@ -15,6 +15,7 @@ import time
 import re
 import urllib.request
 import urllib.error
+import urllib.parse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
@@ -29,6 +30,11 @@ GITHUB_TOKEN   = os.environ["GITHUB_TOKEN"]
 # If not set, a placeholder message is used so the script doesn't crash.
 RESUME_TEMPLATE = os.environ.get("RESUME_TEMPLATE", "").strip()
 
+# Hunter.io API key — stored as GitHub Secret "HUNTER_API_KEY"
+# Free tier: 25 searches/month. Results are cached per company to avoid duplicate calls.
+# Sign up at https://hunter.io to get your key.
+HUNTER_API_KEY = os.environ.get("HUNTER_API_KEY", "").strip()
+
 GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 MODEL = "gpt-4o-mini"   # free tier on GitHub Models
 
@@ -38,6 +44,79 @@ JOBS_FILE = "jobs_data.json"
 # All jobs across ALL categories are analyzed up to this number.
 # GitHub Models free tier: ~10 req/min — 25 jobs + 1 overview ≈ 3.5 min with 8 s delays.
 MAX_TOTAL_JOBS = 25
+
+# ── HUNTER.IO — POINT OF CONTACT LOOKUP ─────────────────────────────────────
+_hunter_cache: dict = {}   # company_name (lower) → result dict or None
+
+# Titles that suggest a hiring/HR/TA contact — ranked by preference
+_HIRING_KEYWORDS = [
+    "talent acquisition", "recruiter", "recruiting", "hr ", "human resources",
+    "people", "hiring", "staffing", "workforce", "head of people",
+]
+
+def find_poc_hunter(company: str) -> dict | None:
+    """
+    Query Hunter.io domain-search by company name.
+    Returns the best hiring-related POC dict or None.
+    Dict keys: email, name, title, confidence, domain.
+    Results are cached to avoid re-querying the same company.
+    """
+    if not HUNTER_API_KEY:
+        return None
+
+    key = company.lower().strip()
+    if key in _hunter_cache:
+        return _hunter_cache[key]
+
+    try:
+        params = urllib.parse.urlencode({
+            "company": company,
+            "api_key": HUNTER_API_KEY,
+            "limit": 10,
+        })
+        url = f"https://api.hunter.io/v2/domain-search?{params}"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+
+        emails = data.get("data", {}).get("emails", [])
+        domain = data.get("data", {}).get("domain", "")
+
+        if not emails:
+            _hunter_cache[key] = None
+            return None
+
+        # Score: lower = higher priority (matches hiring keywords earlier in list)
+        def _score(entry: dict) -> int:
+            title = (entry.get("position") or "").lower()
+            for i, kw in enumerate(_HIRING_KEYWORDS):
+                if kw in title:
+                    return i
+            return len(_HIRING_KEYWORDS)   # no match → lowest priority
+
+        best = min(emails, key=_score)
+        result = {
+            "email":      best.get("value", ""),
+            "name":       f"{best.get('first_name', '')} {best.get('last_name', '')}".strip(),
+            "title":      best.get("position") or "Contact",
+            "confidence": best.get("confidence", 0),
+            "domain":     domain,
+        }
+        _hunter_cache[key] = result
+        print(f"    📧 Hunter POC: {result['name']} <{result['email']}> ({result['title']})")
+        return result
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        print(f"[WARN] Hunter.io HTTP {e.code} for '{company}': {body[:200]}")
+        _hunter_cache[key] = None
+        return None
+    except Exception as exc:
+        print(f"[WARN] Hunter.io lookup failed for '{company}': {exc}")
+        _hunter_cache[key] = None
+        return None
+
 
 # ── LOAD JOB DATA ─────────────────────────────────────────────────────────────
 def load_jobs():
@@ -219,6 +298,25 @@ def build_email_html(overview_html: str, per_job_sections: list[dict], total_job
         link    = item.get("link", "#")
         analysis = item["analysis"]
 
+        # Build POC block if available
+        poc = item.get("poc")
+        if poc:
+            conf_color = "#16a34a" if poc["confidence"] >= 70 else "#d97706"
+            poc_html = f"""
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#15803d;letter-spacing:.05em;">📬 POINT OF CONTACT (via Hunter.io)</p>
+      <p style="margin:0;font-size:13px;color:#1e293b;">
+        <strong>{poc["name"] or "Hiring Team"}</strong>
+        {f'<span style="color:#64748b;"> · {poc["title"]}</span>' if poc["title"] else ""}
+      </p>
+      <p style="margin:4px 0 0;font-size:13px;">
+        <a href="mailto:{poc['email']}" style="color:#1a56db;text-decoration:none;">{poc['email']}</a>
+        <span style="font-size:11px;color:{conf_color};margin-left:8px;">{poc['confidence']}% confidence</span>
+      </p>
+    </div>"""
+        else:
+            poc_html = ""
+
         job_cards_html += f"""
   <div style="{CARD_STYLE}">
     <p style="{HEADER_STYLE}">
@@ -230,6 +328,7 @@ def build_email_html(overview_html: str, per_job_sections: list[dict], total_job
       <span style="{JOB_TAG_STYLE}">{source}</span>
     </p>
     <hr style="{DIVIDER_STYLE}">
+    {poc_html}
     {analysis}
   </div>"""
 
@@ -340,6 +439,9 @@ def main():
         if not analysis_html:
             analysis_html = "<p style='color:#ef4444;'>⚠️ Analysis unavailable for this job.</p>"
 
+        # Hunter.io POC lookup (cached per company — no duplicate API calls)
+        poc = find_poc_hunter(company)
+
         per_job_sections.append({
             "title":    title,
             "company":  company,
@@ -347,6 +449,7 @@ def main():
             "source":   job.get("source", ""),
             "link":     job.get("link", "#"),
             "analysis": analysis_html,
+            "poc":      poc,
         })
 
     print(f"\n✅ Analyzed {len(per_job_sections)} jobs individually.")
