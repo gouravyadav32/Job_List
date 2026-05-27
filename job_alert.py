@@ -78,6 +78,11 @@ def fetch_jobs(search):
         if re.search(r'\b(sql|coding|programming|software engineer)\b', text_to_check):
             continue
 
+        # 3. Screen for required qualifications (must contain at least one)
+        required_quals = r'\b(lean|six\s*-?\s*sigma|mba|post\s*-?\s*graduate|risk management|strategic management|innovation)\b'
+        if not re.search(required_quals, text_to_check):
+            continue
+
         # Clean up publication date
         published = row.get("date_posted", "")
         if pd.notnull(published):
