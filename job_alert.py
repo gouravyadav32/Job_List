@@ -28,7 +28,7 @@ TRANSFORMATION_KEYWORDS = (
 
 SEARCHES = [
     {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "India"},
-    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "UAE"},
+    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "united arab emirates"},
     {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
     {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "Qatar"},
 ]
