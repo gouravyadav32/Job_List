@@ -93,10 +93,23 @@ def fetch_jobs(search):
 
         # Extract emails jobspy found inside the job description (free, no API)
         raw_emails = row.get("emails")
+        found_emails = []
         if isinstance(raw_emails, list):
             found_emails = [str(e) for e in raw_emails if e]
-        else:
-            found_emails = []
+        elif isinstance(raw_emails, str):
+            import ast
+            if raw_emails.startswith('[') and raw_emails.endswith(']'):
+                try:
+                    found_emails = [str(e) for e in ast.literal_eval(raw_emails)]
+                except:
+                    found_emails = [raw_emails]
+            else:
+                found_emails = [e.strip() for e in raw_emails.split(",") if e.strip()]
+        
+        # Fallback: extract manually from description if empty
+        if not found_emails:
+            desc_text = str(row.get("description", ""))
+            found_emails = list(set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', desc_text)))
 
         # Company website URL (used to derive domain for email format lookup)
         company_url = str(row.get("company_url_direct") or row.get("company_url") or "")
