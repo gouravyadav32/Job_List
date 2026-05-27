@@ -68,9 +68,14 @@ def fetch_jobs(search):
         title_str = str(row.get("title", "No title"))
         desc_str = str(row.get("description", ""))
 
-        # Exclude technical/coding jobs based on keywords
+        # 1. Aggressive blacklist for irrelevant job TITLES
+        bad_titles = r'\b(accountant|accounting|tax|audit|qa|tester|quality assurance|security|support|refunds?|retention|onboarding|engineer|engineering|developer|programmer|devops|sales|marketing|account executive|architect|manufacturing|operations analyst|operations associate|business operations)\b'
+        if re.search(bad_titles, title_str.lower()):
+            continue
+
+        # 2. Exclude heavily technical/coding jobs based on TITLE + DESCRIPTION
         text_to_check = (title_str + " " + desc_str).lower()
-        if re.search(r'\b(sql|coding|programming|developer|software engineer)\b', text_to_check):
+        if re.search(r'\b(sql|coding|programming|software engineer)\b', text_to_check):
             continue
 
         # Clean up publication date
