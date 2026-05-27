@@ -66,5 +66,4 @@ jobs:
           TO_GMAIL:         ${{ secrets.TO_GMAIL }}
           GITHUB_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
           RESUME_TEMPLATE:  ${{ secrets.RESUME_TEMPLATE }}
-          HUNTER_API_KEY:   ${{ secrets.HUNTER_API_KEY }}
         run: python resume_keywords.py

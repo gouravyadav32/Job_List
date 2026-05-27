@@ -90,14 +90,28 @@ def fetch_jobs(search):
         if loc_str == "nan" or not loc_str:
             loc_str = "Remote" if search.get("location", "").lower() == "remote" else "Location unknown"
 
+        # Extract emails jobspy found inside the job description (free, no API)
+        raw_emails = row.get("emails")
+        if isinstance(raw_emails, list):
+            found_emails = [str(e) for e in raw_emails if e]
+        else:
+            found_emails = []
+
+        # Company website URL (used to derive domain for email format lookup)
+        company_url = str(row.get("company_url_direct") or row.get("company_url") or "")
+        if company_url in ("nan", "None", "none"):
+            company_url = ""
+
         jobs_list.append({
-            "title": str(row.get("title", "No title")),
-            "company": str(row.get("company", "Unknown")),
-            "location": loc_str,
-            "link": str(row.get("job_url", "")),
-            "source": str(row.get("site", "Unknown")).capitalize(),
-            "published": published,
-            "summary": summary
+            "title":       str(row.get("title", "No title")),
+            "company":     str(row.get("company", "Unknown")),
+            "location":    loc_str,
+            "link":        str(row.get("job_url", "")),
+            "source":      str(row.get("site", "Unknown")).capitalize(),
+            "published":   published,
+            "summary":     summary,
+            "emails":      found_emails,
+            "company_url": company_url,
         })
         
     return jobs_list

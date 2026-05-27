@@ -30,11 +30,6 @@ GITHUB_TOKEN   = os.environ["GITHUB_TOKEN"]
 # If not set, a placeholder message is used so the script doesn't crash.
 RESUME_TEMPLATE = os.environ.get("RESUME_TEMPLATE", "").strip()
 
-# Hunter.io API key — stored as GitHub Secret "HUNTER_API_KEY"
-# Free tier: 25 searches/month. Results are cached per company to avoid duplicate calls.
-# Sign up at https://hunter.io to get your key.
-HUNTER_API_KEY = os.environ.get("HUNTER_API_KEY", "").strip()
-
 GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 MODEL = "gpt-4o-mini"   # free tier on GitHub Models
 
@@ -45,77 +40,88 @@ JOBS_FILE = "jobs_data.json"
 # GitHub Models free tier: ~10 req/min — 25 jobs + 1 overview ≈ 3.5 min with 8 s delays.
 MAX_TOTAL_JOBS = 25
 
-# ── HUNTER.IO — POINT OF CONTACT LOOKUP ─────────────────────────────────────
-_hunter_cache: dict = {}   # company_name (lower) → result dict or None
+# ── FREE POINT OF CONTACT LOOKUP (no API key needed) ─────────────────────────
+#
+# Strategy 1 — jobspy email extraction:
+#   jobspy already parses emails from job descriptions automatically.
+#   When a company includes contact details in the posting, they appear here.
+#
+# Strategy 2 — emailformat.com scraping:
+#   emailformat.com catalogs the email naming convention used by thousands of
+#   companies (e.g. {first}.{last}@accenture.com). Completely free, no sign-up.
+#   Returns a pattern string (not a real address) when Strategy 1 finds nothing.
 
-# Titles that suggest a hiring/HR/TA contact — ranked by preference
-_HIRING_KEYWORDS = [
-    "talent acquisition", "recruiter", "recruiting", "hr ", "human resources",
-    "people", "hiring", "staffing", "workforce", "head of people",
-]
+_JUNK_PREFIXES = ("noreply", "no-reply", "donotreply", "mailer", "bounce", "support", "info@")
+_domain_fmt_cache: dict = {}   # domain → pattern string or None
 
-def find_poc_hunter(company: str) -> dict | None:
+
+def _extract_domain(url: str) -> str:
+    """Pull the bare domain (no www) from any URL string."""
+    try:
+        parsed = urllib.parse.urlparse(url if "://" in url else "https://" + url)
+        host = parsed.netloc or parsed.path.split("/")[0]
+        return re.sub(r"^www\.", "", host).strip().lower()
+    except Exception:
+        return ""
+
+
+def _scrape_email_format(domain: str) -> str | None:
     """
-    Query Hunter.io domain-search by company name.
-    Returns the best hiring-related POC dict or None.
-    Dict keys: email, name, title, confidence, domain.
-    Results are cached to avoid re-querying the same company.
+    Scrape emailformat.com/d/<domain> for the most-used email pattern.
+    Returns a pattern like '{first}.{last}@company.com' or None.
+    Results are cached per domain to avoid repeat requests.
     """
-    if not HUNTER_API_KEY:
-        return None
-
-    key = company.lower().strip()
-    if key in _hunter_cache:
-        return _hunter_cache[key]
+    if domain in _domain_fmt_cache:
+        return _domain_fmt_cache[domain]
 
     try:
-        params = urllib.parse.urlencode({
-            "company": company,
-            "api_key": HUNTER_API_KEY,
-            "limit": 10,
-        })
-        url = f"https://api.hunter.io/v2/domain-search?{params}"
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        url = f"https://www.emailformat.com/d/{domain}"
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; JobBot/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
 
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
-
-        emails = data.get("data", {}).get("emails", [])
-        domain = data.get("data", {}).get("domain", "")
-
-        if not emails:
-            _hunter_cache[key] = None
-            return None
-
-        # Score: lower = higher priority (matches hiring keywords earlier in list)
-        def _score(entry: dict) -> int:
-            title = (entry.get("position") or "").lower()
-            for i, kw in enumerate(_HIRING_KEYWORDS):
-                if kw in title:
-                    return i
-            return len(_HIRING_KEYWORDS)   # no match → lowest priority
-
-        best = min(emails, key=_score)
-        result = {
-            "email":      best.get("value", ""),
-            "name":       f"{best.get('first_name', '')} {best.get('last_name', '')}".strip(),
-            "title":      best.get("position") or "Contact",
-            "confidence": best.get("confidence", 0),
-            "domain":     domain,
-        }
-        _hunter_cache[key] = result
-        print(f"    📧 Hunter POC: {result['name']} <{result['email']}> ({result['title']})")
+        # emailformat.com renders patterns like {first}.{last}@domain.com in the page
+        match = re.search(
+            r'(\{[a-z_.]+\}(?:\.[a-z]+)?@' + re.escape(domain) + r')',
+            html,
+        )
+        result = match.group(1) if match else None
+        _domain_fmt_cache[domain] = result
         return result
+    except Exception:
+        _domain_fmt_cache[domain] = None
+        return None
 
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        print(f"[WARN] Hunter.io HTTP {e.code} for '{company}': {body[:200]}")
-        _hunter_cache[key] = None
-        return None
-    except Exception as exc:
-        print(f"[WARN] Hunter.io lookup failed for '{company}': {exc}")
-        _hunter_cache[key] = None
-        return None
+
+def find_poc_free(job: dict) -> dict | None:
+    """
+    Find a point-of-contact email using two free, no-signup strategies.
+    Returns a dict with keys: email, source, is_pattern.
+    """
+    # ── Strategy 1: real emails extracted from job description by jobspy ──
+    raw_emails: list = job.get("emails") or []
+    real_emails = [
+        e for e in raw_emails
+        if e and not any(e.lower().startswith(p) for p in _JUNK_PREFIXES)
+    ]
+    if real_emails:
+        print(f"    📧 POC (from job desc): {real_emails[0]}")
+        return {"email": real_emails[0], "source": "job description", "is_pattern": False}
+
+    # ── Strategy 2: email format pattern from emailformat.com ─────────────
+    company_url = job.get("company_url", "")
+    if company_url:
+        domain = _extract_domain(company_url)
+        if domain:
+            pattern = _scrape_email_format(domain)
+            if pattern:
+                print(f"    📋 POC pattern (emailformat.com): {pattern}")
+                return {"email": pattern, "source": "emailformat.com", "is_pattern": True}
+
+    return None
 
 
 # ── LOAD JOB DATA ─────────────────────────────────────────────────────────────
@@ -301,17 +307,27 @@ def build_email_html(overview_html: str, per_job_sections: list[dict], total_job
         # Build POC block if available
         poc = item.get("poc")
         if poc:
-            conf_color = "#16a34a" if poc["confidence"] >= 70 else "#d97706"
+            if poc["is_pattern"]:
+                # Strategy 2: show email format pattern
+                label  = "📋 EMAIL FORMAT PATTERN (via emailformat.com)"
+                badge  = "<span style='font-size:11px;color:#d97706;margin-left:8px;'>Pattern — not a real address</span>"
+                bg     = "#fffbeb"
+                border = "#fde68a"
+                lcolor = "#92400e"
+            else:
+                # Strategy 1: real email from job description
+                label  = "📬 POINT OF CONTACT (from job posting)"
+                badge  = "<span style='font-size:11px;color:#16a34a;margin-left:8px;'>✓ Found in job description</span>"
+                bg     = "#f0fdf4"
+                border = "#bbf7d0"
+                lcolor = "#15803d"
+
             poc_html = f"""
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
-      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#15803d;letter-spacing:.05em;">📬 POINT OF CONTACT (via Hunter.io)</p>
-      <p style="margin:0;font-size:13px;color:#1e293b;">
-        <strong>{poc["name"] or "Hiring Team"}</strong>
-        {f'<span style="color:#64748b;"> · {poc["title"]}</span>' if poc["title"] else ""}
-      </p>
-      <p style="margin:4px 0 0;font-size:13px;">
-        <a href="mailto:{poc['email']}" style="color:#1a56db;text-decoration:none;">{poc['email']}</a>
-        <span style="font-size:11px;color:{conf_color};margin-left:8px;">{poc['confidence']}% confidence</span>
+    <div style="background:{bg};border:1px solid {border};border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:{lcolor};letter-spacing:.05em;">{label}</p>
+      <p style="margin:0;font-size:13px;">
+        <a href="mailto:{poc['email']}" style="color:#1a56db;text-decoration:none;font-weight:600;">{poc['email']}</a>
+        {badge}
       </p>
     </div>"""
         else:
@@ -439,8 +455,8 @@ def main():
         if not analysis_html:
             analysis_html = "<p style='color:#ef4444;'>⚠️ Analysis unavailable for this job.</p>"
 
-        # Hunter.io POC lookup (cached per company — no duplicate API calls)
-        poc = find_poc_hunter(company)
+        # Free POC lookup — no API key or sign-up needed
+        poc = find_poc_free(job)
 
         per_job_sections.append({
             "title":    title,
