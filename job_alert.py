@@ -41,13 +41,40 @@ EXCLUDED_TITLES = (
 )
 
 SEARCHES = [
-    {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "India"},
-    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "united arab emirates"},
-    {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
-    {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "Qatar"},
+    {
+        "title":   "Transformation Roles (India)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "India",
+        "country":  "india",
+        # naukri = India's largest job board; google catches everything else
+        "sites":   ["indeed", "linkedin", "naukri", "google"],
+    },
+    {
+        "title":   "Transformation Roles (UAE)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "Dubai, UAE",
+        "country":  "united arab emirates",
+        # bayt = #1 Middle East job board
+        "sites":   ["indeed", "linkedin", "bayt", "google"],
+    },
+    {
+        "title":   "Transformation Roles (Qatar)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "Qatar",
+        "country":  "qatar",
+        "sites":   ["indeed", "linkedin", "bayt", "google"],
+    },
+    {
+        "title":   "Transformation Roles (Remote/Global)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "remote",
+        "country":  "worldwide",
+        # zip_recruiter + google give broad global remote coverage
+        "sites":   ["indeed", "linkedin", "zip_recruiter", "google"],
+    },
 ]
 
-HOURS_BACK = 24   # only show jobs posted in the last N hours
+HOURS_BACK = 48   # cast a wider net — catches jobs posted over the past 2 days
 
 # ── FETCH & FILTER ────────────────────────────────────────────────────────────
 def fetch_jobs(search):
@@ -64,13 +91,16 @@ def fetch_jobs(search):
         # so job boards filter server-side before we receive results.
         enriched_query = f"({search['keywords']}) AND {REQUIRED_QUALS} {EXCLUDED_TITLES}"
 
+        # Use platform list defined per search (region-specific boards)
+        site_list = search.get("sites", ["indeed", "linkedin", "glassdoor", "google"])
+
         # JobSpy automatically handles bypassing bot protection for Indeed, LinkedIn, etc.
         jobs_df = jobspy.scrape_jobs(
-            site_name=["indeed", "linkedin", "glassdoor"],
+            site_name=site_list,
             search_term=enriched_query,
             location=loc,
             is_remote=is_remote,
-            results_wanted=25,   # increased since query is now more precise
+            results_wanted=50,   # pull more — filters will trim this down
             hours_old=HOURS_BACK,
             country_indeed=search.get('country', 'usa')
         )
