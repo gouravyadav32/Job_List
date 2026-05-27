@@ -27,10 +27,10 @@ TRANSFORMATION_KEYWORDS = (
 )
 
 SEARCHES = [
-    {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "india"},
-    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "uae", "country": "uae"},
+    {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "India"},
+    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "UAE"},
     {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
-    {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "qatar"},
+    {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "Qatar"},
 ]
 
 HOURS_BACK = 24   # only show jobs posted in the last N hours
