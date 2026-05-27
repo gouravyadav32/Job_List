@@ -15,6 +15,7 @@ import time
 import re
 import urllib.request
 import urllib.error
+import urllib.parse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
@@ -38,6 +39,90 @@ JOBS_FILE = "jobs_data.json"
 # All jobs across ALL categories are analyzed up to this number.
 # GitHub Models free tier: ~10 req/min — 25 jobs + 1 overview ≈ 3.5 min with 8 s delays.
 MAX_TOTAL_JOBS = 25
+
+# ── FREE POINT OF CONTACT LOOKUP (no API key needed) ─────────────────────────
+#
+# Strategy 1 — jobspy email extraction:
+#   jobspy already parses emails from job descriptions automatically.
+#   When a company includes contact details in the posting, they appear here.
+#
+# Strategy 2 — emailformat.com scraping:
+#   emailformat.com catalogs the email naming convention used by thousands of
+#   companies (e.g. {first}.{last}@accenture.com). Completely free, no sign-up.
+#   Returns a pattern string (not a real address) when Strategy 1 finds nothing.
+
+_JUNK_PREFIXES = ("noreply", "no-reply", "donotreply", "mailer", "bounce", "support", "info@")
+_domain_fmt_cache: dict = {}   # domain → pattern string or None
+
+
+def _extract_domain(url: str) -> str:
+    """Pull the bare domain (no www) from any URL string."""
+    try:
+        parsed = urllib.parse.urlparse(url if "://" in url else "https://" + url)
+        host = parsed.netloc or parsed.path.split("/")[0]
+        return re.sub(r"^www\.", "", host).strip().lower()
+    except Exception:
+        return ""
+
+
+def _scrape_email_format(domain: str) -> str | None:
+    """
+    Scrape emailformat.com/d/<domain> for the most-used email pattern.
+    Returns a pattern like '{first}.{last}@company.com' or None.
+    Results are cached per domain to avoid repeat requests.
+    """
+    if domain in _domain_fmt_cache:
+        return _domain_fmt_cache[domain]
+
+    try:
+        url = f"https://www.emailformat.com/d/{domain}"
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; JobBot/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+
+        # emailformat.com renders patterns like {first}.{last}@domain.com in the page
+        match = re.search(
+            r'(\{[a-z_.]+\}(?:\.[a-z]+)?@' + re.escape(domain) + r')',
+            html,
+        )
+        result = match.group(1) if match else None
+        _domain_fmt_cache[domain] = result
+        return result
+    except Exception:
+        _domain_fmt_cache[domain] = None
+        return None
+
+
+def find_poc_free(job: dict) -> dict | None:
+    """
+    Find a point-of-contact email using two free, no-signup strategies.
+    Returns a dict with keys: email, source, is_pattern.
+    """
+    # ── Strategy 1: real emails extracted from job description by jobspy ──
+    raw_emails: list = job.get("emails") or []
+    real_emails = [
+        e for e in raw_emails
+        if e and not any(e.lower().startswith(p) for p in _JUNK_PREFIXES)
+    ]
+    if real_emails:
+        print(f"    📧 POC (from job desc): {real_emails[0]}")
+        return {"email": real_emails[0], "source": "job description", "is_pattern": False}
+
+    # ── Strategy 2: email format pattern from emailformat.com ─────────────
+    company_url = job.get("company_url", "")
+    if company_url:
+        domain = _extract_domain(company_url)
+        if domain:
+            pattern = _scrape_email_format(domain)
+            if pattern:
+                print(f"    📋 POC pattern (emailformat.com): {pattern}")
+                return {"email": pattern, "source": "emailformat.com", "is_pattern": True}
+
+    return None
+
 
 # ── LOAD JOB DATA ─────────────────────────────────────────────────────────────
 def load_jobs():
@@ -219,6 +304,35 @@ def build_email_html(overview_html: str, per_job_sections: list[dict], total_job
         link    = item.get("link", "#")
         analysis = item["analysis"]
 
+        # Build POC block if available
+        poc = item.get("poc")
+        if poc:
+            if poc["is_pattern"]:
+                # Strategy 2: show email format pattern
+                label  = "📋 EMAIL FORMAT PATTERN (via emailformat.com)"
+                badge  = "<span style='font-size:11px;color:#d97706;margin-left:8px;'>Pattern — not a real address</span>"
+                bg     = "#fffbeb"
+                border = "#fde68a"
+                lcolor = "#92400e"
+            else:
+                # Strategy 1: real email from job description
+                label  = "📬 POINT OF CONTACT (from job posting)"
+                badge  = "<span style='font-size:11px;color:#16a34a;margin-left:8px;'>✓ Found in job description</span>"
+                bg     = "#f0fdf4"
+                border = "#bbf7d0"
+                lcolor = "#15803d"
+
+            poc_html = f"""
+    <div style="background:{bg};border:1px solid {border};border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:{lcolor};letter-spacing:.05em;">{label}</p>
+      <p style="margin:0;font-size:13px;">
+        <a href="mailto:{poc['email']}" style="color:#1a56db;text-decoration:none;font-weight:600;">{poc['email']}</a>
+        {badge}
+      </p>
+    </div>"""
+        else:
+            poc_html = ""
+
         job_cards_html += f"""
   <div style="{CARD_STYLE}">
     <p style="{HEADER_STYLE}">
@@ -230,6 +344,7 @@ def build_email_html(overview_html: str, per_job_sections: list[dict], total_job
       <span style="{JOB_TAG_STYLE}">{source}</span>
     </p>
     <hr style="{DIVIDER_STYLE}">
+    {poc_html}
     {analysis}
   </div>"""
 
@@ -340,6 +455,9 @@ def main():
         if not analysis_html:
             analysis_html = "<p style='color:#ef4444;'>⚠️ Analysis unavailable for this job.</p>"
 
+        # Free POC lookup — no API key or sign-up needed
+        poc = find_poc_free(job)
+
         per_job_sections.append({
             "title":    title,
             "company":  company,
@@ -347,6 +465,7 @@ def main():
             "source":   job.get("source", ""),
             "link":     job.get("link", "#"),
             "analysis": analysis_html,
+            "poc":      poc,
         })
 
     print(f"\n✅ Analyzed {len(per_job_sections)} jobs individually.")
