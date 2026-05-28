@@ -26,14 +26,55 @@ TRANSFORMATION_KEYWORDS = (
     '"process excellence" OR "lean Six sigma - black belt" OR "Strategy and Innovation" OR "Performance Improvement"'
 )
 
+# Qualifications the candidate HAS — at least one must appear in the job posting
+REQUIRED_QUALS = (
+    '("Lean" OR "Six Sigma" OR "MBA" OR "Post Graduate" OR '
+    '"Risk Management" OR "Strategic Management" OR "Innovation")'
+)
+
+# Job-title-level exclusions baked into the query (NOT operator)
+EXCLUDED_TITLES = (
+    '-accountant -accounting -auditor -"QA" -tester -"software engineer" '
+    '-developer -programmer -devops -architect -"sales representative" '
+    '-"account executive" -"onboarding engineer" -"security analyst" '
+    '-"operations associate"'
+)
+
 SEARCHES = [
-    {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "India"},
-    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "united arab emirates"},
-    {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
-    {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "Qatar"},
+    {
+        "title":   "Transformation Roles (India)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "India",
+        "country":  "india",
+        # naukri = India's largest job board; google catches everything else
+        "sites":   ["indeed", "linkedin", "naukri", "google"],
+    },
+    {
+        "title":   "Transformation Roles (UAE)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "Dubai, UAE",
+        "country":  "united arab emirates",
+        # bayt = #1 Middle East job board
+        "sites":   ["indeed", "linkedin", "bayt", "google"],
+    },
+    {
+        "title":   "Transformation Roles (Qatar)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "Qatar",
+        "country":  "qatar",
+        "sites":   ["indeed", "linkedin", "bayt", "google"],
+    },
+    {
+        "title":   "Transformation Roles (Remote/Global)",
+        "keywords": TRANSFORMATION_KEYWORDS,
+        "location": "remote",
+        "country":  "worldwide",
+        # zip_recruiter + google give broad global remote coverage
+        "sites":   ["indeed", "linkedin", "zip_recruiter", "google"],
+    },
 ]
 
-HOURS_BACK = 24   # only show jobs posted in the last N hours
+HOURS_BACK = 48   # cast a wider net — catches jobs posted over the past 2 days
 
 # ── FETCH & FILTER ────────────────────────────────────────────────────────────
 def fetch_jobs(search):
@@ -46,13 +87,20 @@ def fetch_jobs(search):
             is_remote = True
             loc = None
             
+        # Build enriched search term with qualifications & exclusions baked in
+        # so job boards filter server-side before we receive results.
+        enriched_query = f"({search['keywords']}) AND {REQUIRED_QUALS} {EXCLUDED_TITLES}"
+
+        # Use platform list defined per search (region-specific boards)
+        site_list = search.get("sites", ["indeed", "linkedin", "glassdoor", "google"])
+
         # JobSpy automatically handles bypassing bot protection for Indeed, LinkedIn, etc.
         jobs_df = jobspy.scrape_jobs(
-            site_name=["indeed", "linkedin", "glassdoor"],
-            search_term=search["keywords"],
+            site_name=site_list,
+            search_term=enriched_query,
             location=loc,
             is_remote=is_remote,
-            results_wanted=15,
+            results_wanted=50,   # pull more — filters will trim this down
             hours_old=HOURS_BACK,
             country_indeed=search.get('country', 'usa')
         )
@@ -68,17 +116,18 @@ def fetch_jobs(search):
         title_str = str(row.get("title", "No title"))
         desc_str = str(row.get("description", ""))
 
-        # 1. Aggressive blacklist for irrelevant job TITLES
+        # ── Safety-net filters (catch anything the query missed) ─────────────
+        # 1. Block irrelevant job titles
         bad_titles = r'\b(accountant|accounting|tax|audit|qa|tester|quality assurance|security|support|refunds?|retention|onboarding|engineer|engineering|developer|programmer|devops|sales|marketing|account executive|architect|manufacturing|operations analyst|operations associate|business operations)\b'
         if re.search(bad_titles, title_str.lower()):
             continue
 
-        # 2. Exclude heavily technical/coding jobs based on TITLE + DESCRIPTION
+        # 2. Block heavy-tech descriptions
         text_to_check = (title_str + " " + desc_str).lower()
         if re.search(r'\b(sql|coding|programming|software engineer)\b', text_to_check):
             continue
 
-        # 3. Screen for required qualifications (must contain at least one)
+        # 3. Qualification gate — must mention at least one
         required_quals = r'\b(lean|six\s*-?\s*sigma|mba|post\s*-?\s*graduate|risk management|strategic management|innovation)\b'
         if not re.search(required_quals, text_to_check):
             continue
