@@ -19,17 +19,18 @@ TO_EMAIL     = os.environ["TO_GMAIL"]
 
 # Combined keywords to cover the 14 requested Transformation & Change roles
 TRANSFORMATION_KEYWORDS = (
-    '"Business Transformation" OR "Transformation Lead" OR "Transformation Director" OR '
+    '"Business Transformation" OR "Transformation Lead" OR "Transformation Execution" OR '
     '"Change Management" OR "Strategic Initiatives" OR "Digital Transformation" OR '
-    '"Agile Transformation" OR "Chief Transformation Officer" OR "Enterprise Transformation" OR '
-    '"Business transformation" OR "digital transformation" OR "operational excellence" OR '
-    '"process optimisation" OR "Transformation execution" OR "lean Six sigma - black belt" OR "Strategy and Innovation"'
+    '"Agile" OR "Chief Transformation" OR "Enterprise Transformation" OR '
+    '"Continuous Improvement" OR "digital transformation" OR "operational excellence" OR '
+    '"process excellence" OR "lean Six sigma - black belt" OR "Strategy and Innovation" OR "Performance Improvement"'
 )
 
 SEARCHES = [
     {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "india"},
-    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "Middle East", "country": "uae"},
+    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "uae", "country": "uae"},
     {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
+    {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "qatar"},
 ]
 
 HOURS_BACK = 24   # only show jobs posted in the last N hours
