@@ -28,7 +28,7 @@ TRANSFORMATION_KEYWORDS = (
 
 SEARCHES = [
     {"title": "Transformation Roles (India)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "India",       "country": "India"},
-    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "UAE"},
+    {"title": "Transformation Roles (Middle East)",  "keywords": TRANSFORMATION_KEYWORDS, "location": "UAE", "country": "united arab emirates"},
     {"title": "Transformation Roles (Remote)",       "keywords": TRANSFORMATION_KEYWORDS, "location": "remote",      "country": "usa"},
     {"title": "Transformation Roles (Qatar)",        "keywords": TRANSFORMATION_KEYWORDS, "location": "Qatar",      "country": "Qatar"},
 ]
@@ -76,6 +76,11 @@ def fetch_jobs(search):
         # 2. Exclude heavily technical/coding jobs based on TITLE + DESCRIPTION
         text_to_check = (title_str + " " + desc_str).lower()
         if re.search(r'\b(sql|coding|programming|software engineer)\b', text_to_check):
+            continue
+
+        # 3. Screen for required qualifications (must contain at least one)
+        required_quals = r'\b(lean|six\s*-?\s*sigma|mba|post\s*-?\s*graduate|risk management|strategic management|innovation)\b'
+        if not re.search(required_quals, text_to_check):
             continue
 
         # Clean up publication date
